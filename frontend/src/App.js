@@ -1,135 +1,122 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import "./App.css";
+import React, { useState, useEffect } from 'react';
+import './style.css';
 
-const Crossword = () => {
-  const tableSize = 10; // Розмір таблиці
-  const maxAttempts = 5; // Максимальна кількість спроб для розміщення слова
+const wordsList = [
+  'світло', 'машина', 'будинок', 'дерево', 'знання',
+  'любов', 'сонце', 'комп\'ютер', 'кіт', 'собака',
+  'дорога', 'школа', 'літак', 'море', 'гора',
+  'книга', 'стіл', 'вікно', 'квітка', 'зірка'
+];
 
-  // Список українських слів для кросворду
-  const words = useMemo(() => ["яблуко", "апельсин", "банан", "виноград", "диня"], []);
+const getRandomLetter = () => {
+  const letters = 'абвгґдежзийклмнопрстуфхцчшщьюя';
+  return letters[Math.floor(Math.random() * letters.length)];
+};
 
-  // Унікальні кольори для кожного слова
-  const colorClasses = useMemo(() => [
-    "#ff6347", "#4682b4", "#32cd32", "#ffa500", "#8a2be2"
-  ], []);
+const generateEmptyGrid = (size) => {
+  return Array(size).fill(null).map(() => Array(size).fill(''));
+};
 
-  const [table, setTable] = useState([]);
-  const [highlightActive, setHighlightActive] = useState(true);
+const WordSearch = () => {
+  const gridSize = 15;
+  const [grid, setGrid] = useState(generateEmptyGrid(gridSize));
+  const [highlightedCells, setHighlightedCells] = useState([]);
 
-  // Ініціалізація пустої таблиці
-  const initializeTable = useCallback(() => {
-    return Array(tableSize)
-      .fill(null)
-      .map(() => Array(tableSize).fill(""));
-  }, [tableSize]);
+  const getRandomColor = () => {
+    const colors = ['#FFB6C1', '#ADD8E6', '#90EE90', '#FFDEAD', '#DDA0DD', '#FFA07A'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
 
-  // Заповнення пустих клітинок випадковими літерами
-  const fillEmptyCells = useCallback((newTable) => {
-    for (let y = 0; y < tableSize; y++) {
-      for (let x = 0; x < tableSize; x++) {
-        if (newTable[y][x] === "") {
-          newTable[y][x] = {
-            letter: String.fromCharCode(97 + Math.floor(Math.random() * 26)), // Випадкові літери
-            color: "random-letter",
-          };
-        }
+  const canPlaceWord = (grid, word, x, y, isVertical) => {
+    if (isVertical) {
+      if (y + word.length > gridSize) return false;
+      for (let i = 0; i < word.length; i++) {
+        if (grid[y + i][x] !== '' && grid[y + i][x] !== word[i]) return false;
       }
-    }
-    return newTable;
-  }, [tableSize]);
-
-  // Перевірка, чи можна розмістити слово у вибраній позиції
-  const canPlaceWord = useCallback((word, startX, startY, direction, newTable) => {
-    if (direction === "horizontal" && startX + word.length > tableSize) return false;
-    if (direction === "vertical" && startY + word.length > tableSize) return false;
-
-    for (let i = 0; i < word.length; i++) {
-      const currentCell =
-        direction === "horizontal"
-          ? newTable[startY]?.[startX + i]
-          : newTable[startY + i]?.[startX];
-
-      if (currentCell !== "" && currentCell.letter !== word[i]) {
-        return false;
+    } else {
+      if (x + word.length > gridSize) return false;
+      for (let i = 0; i < word.length; i++) {
+        if (grid[y][x + i] !== '' && grid[y][x + i] !== word[i]) return false;
       }
     }
     return true;
-  }, [tableSize]);
+  };
 
-  // Розміщення слова в таблиці
-  const placeWord = useCallback((word, colorClass, newTable) => {
-    let placed = false;
-    let attempts = 0;
+  const placeWord = (grid, word, x, y, isVertical, color) => {
+    const newGrid = [...grid];
+    const wordCells = [];
 
-    while (!placed && attempts < maxAttempts) {
-      const startX = Math.floor(Math.random() * tableSize);
-      const startY = Math.floor(Math.random() * tableSize);
-      const direction = Math.random() > 0.5 ? "horizontal" : "vertical";
-
-      if (canPlaceWord(word, startX, startY, direction, newTable)) {
-        for (let i = 0; i < word.length; i++) {
-          if (direction === "horizontal") {
-            newTable[startY][startX + i] = { letter: word[i], color: colorClass };
-          } else {
-            newTable[startY + i][startX] = { letter: word[i], color: colorClass };
-          }
-        }
-        placed = true;
-      } else {
-        attempts++;
+    if (isVertical) {
+      for (let i = 0; i < word.length; i++) {
+        newGrid[y + i][x] = word[i];
+        wordCells.push({ x, y: y + i, color });
+      }
+    } else {
+      for (let i = 0; i < word.length; i++) {
+        newGrid[y][x + i] = word[i];
+        wordCells.push({ x: x + i, y, color });
       }
     }
 
-    return placed;
-  }, [tableSize, maxAttempts, canPlaceWord]);
+    return { newGrid, wordCells };
+  };
 
-  // Генерація таблиці зі словами
-  const generateTableWithWords = useCallback(() => {
-    let newTable = initializeTable();
-    let failedAttempts = 0;
-
-    for (let i = 0; i < words.length; i++) {
-      const wordPlaced = placeWord(words[i], colorClasses[i], newTable);
-      if (!wordPlaced) {
-        failedAttempts++;
-        if (failedAttempts >= maxAttempts) break; // Якщо не вдалося розмістити всі слова
-      }
-    }
-
-    newTable = fillEmptyCells(newTable);
-    setTable(newTable);
-  }, [initializeTable, placeWord, fillEmptyCells, words, colorClasses]);
+  const fillEmptyCells = (grid) => {
+    return grid.map(row => row.map(cell => (cell === '' ? getRandomLetter() : cell)));
+  };
 
   useEffect(() => {
-    generateTableWithWords();
-  }, [generateTableWithWords]);
+    let newGrid = generateEmptyGrid(gridSize);
+    let newHighlightedCells = [];
 
-  // Функція для зміни стану підсвічування
-  const toggleHighlight = () => {
-    setHighlightActive((prevHighlightActive) => !prevHighlightActive);
+    wordsList.forEach((word) => {
+      let placed = false;
+      let attempts = 0;
+      const wordColor = getRandomColor();
+      while (!placed && attempts < 100) {
+        const x = Math.floor(Math.random() * gridSize);
+        const y = Math.floor(Math.random() * gridSize);
+        const isVertical = Math.random() < 0.5;
+        if (canPlaceWord(newGrid, word, x, y, isVertical)) {
+          const { newGrid: updatedGrid, wordCells } = placeWord(newGrid, word, x, y, isVertical, wordColor);
+          newGrid = updatedGrid;
+          newHighlightedCells = [...newHighlightedCells, ...wordCells];
+          placed = true;
+        }
+        attempts++;
+      }
+    });
+
+    newGrid = fillEmptyCells(newGrid);
+    setGrid(newGrid);
+    setHighlightedCells(newHighlightedCells);
+  }, []);
+
+  const getCellStyle = (x, y) => {
+    const cell = highlightedCells.find(cell => cell.x === x && cell.y === y);
+    return cell ? { backgroundColor: cell.color } : {};
   };
 
   return (
-    <div>
-      <h1>Знайди слова</h1>
-      <table>
-        <tbody>
-          {table.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className={highlightActive ? cell.color : "no-highlight"}>
-                  {cell.letter}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button onClick={toggleHighlight}>
-        {highlightActive ? "Вимкнути підсвічування" : "Увімкнути підсвічування"}
-      </button>
+    <div className="word-search-container">
+      <h1>СловоШукач</h1>
+      <div className="grid">
+        {grid.map((row, rowIndex) => (
+          <div key={rowIndex} className="grid-row">
+            {row.map((cell, cellIndex) => (
+              <div
+                key={cellIndex}
+                className="grid-cell"
+                style={getCellStyle(cellIndex, rowIndex)}
+              >
+                {cell}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
-export default Crossword;
+export default WordSearch;

@@ -1,7 +1,7 @@
 import React from 'react';
 // import ReactDOM from 'react-dom';
 import App from './App';
-import './App.css';
+import './style.css';
 import { createRoot } from 'react-dom/client';
 
 // ReactDOM.render(
