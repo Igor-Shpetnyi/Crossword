@@ -1,140 +1,135 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import './App.css';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import "./App.css";
 
-const App = () => {
-    const words = useMemo(() => [
-        "яблуко", "дім", "дерево", "книга", "вода",
-        "вітер", "сонце", "місяць", "миша", "хмара",
-        "гроза", "річка", "гори", "небо", "море",
-        "квітка", "пташка", "зірка", "зима", "осінь"
-    ], []);
+const Crossword = () => {
+  const tableSize = 10; // Розмір таблиці
+  const maxAttempts = 5; // Максимальна кількість спроб для розміщення слова
 
-    const tableSize = 15;
-    const maxAttempts = 50;
+  // Список українських слів для кросворду
+  const words = useMemo(() => ["яблуко", "апельсин", "банан", "виноград", "диня"], []);
 
-    const [table, setTable] = useState([]);
-    const [highlightEnabled, setHighlightEnabled] = useState(true);
-    const [wordCount, setWordCount] = useState('');
+  // Унікальні кольори для кожного слова
+  const colorClasses = useMemo(() => [
+    "#ff6347", "#4682b4", "#32cd32", "#ffa500", "#8a2be2"
+  ], []);
 
-    const colorClasses = useMemo(() => [
-        'color-1', 'color-2', 'color-3', 'color-4', 'color-5',
-        'color-6', 'color-7', 'color-8', 'color-9', 'color-10',
-        'color-11', 'color-12', 'color-13', 'color-14', 'color-15',
-        'color-16', 'color-17', 'color-18', 'color-19', 'color-20'
-    ], []);
+  const [table, setTable] = useState([]);
+  const [highlightActive, setHighlightActive] = useState(true);
 
-    const clearTable = () => {
-        const newTable = Array.from({ length: tableSize }, () => Array(tableSize).fill(''));
-        setTable(newTable);
-    };
+  // Ініціалізація пустої таблиці
+  const initializeTable = useCallback(() => {
+    return Array(tableSize)
+      .fill(null)
+      .map(() => Array(tableSize).fill(""));
+  }, [tableSize]);
 
-    const placeWord = useCallback((word, colorClass) => {
-        let placed = false;
-        let attempts = 0;
-        while (!placed && attempts < maxAttempts) {
-            const startX = Math.floor(Math.random() * tableSize);
-            const startY = Math.floor(Math.random() * tableSize);
-            const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
-
-            const canPlaceWord = (word, startX, startY, direction) => {
-                if (direction === 'horizontal' && startX + word.length > tableSize) return false;
-                if (direction === 'vertical' && startY + word.length > tableSize) return false;
-
-                for (let i = 0; i < word.length; i++) {
-                    let currentCell;
-                    if (direction === 'horizontal') {
-                        currentCell = table[startY][startX + i];
-                    } else {
-                        currentCell = table[startY + i][startX];
-                    }
-                    if (currentCell !== '' && currentCell !== word[i]) return false;
-                }
-                return true;
-            };
-
-            if (canPlaceWord(word, startX, startY, direction)) {
-                const newTable = [...table];
-                for (let i = 0; i < word.length; i++) {
-                    if (direction === 'horizontal') {
-                        newTable[startY][startX + i] = { letter: word[i], color: colorClass };
-                    } else {
-                        newTable[startY + i][startX] = { letter: word[i], color: colorClass };
-                    }
-                }
-                setTable(newTable);
-                placed = true;
-            } else {
-                attempts++;
-            }
+  // Заповнення пустих клітинок випадковими літерами
+  const fillEmptyCells = useCallback((newTable) => {
+    for (let y = 0; y < tableSize; y++) {
+      for (let x = 0; x < tableSize; x++) {
+        if (newTable[y][x] === "") {
+          newTable[y][x] = {
+            letter: String.fromCharCode(97 + Math.floor(Math.random() * 26)), // Випадкові літери
+            color: "random-letter",
+          };
         }
-        return placed;
-    }, [table, maxAttempts, tableSize]);
+      }
+    }
+    return newTable;
+  }, [tableSize]);
 
-    const fillEmptyCells = useCallback(() => {
-        const alphabet = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя";
-        const newTable = table.map(row =>
-            row.map(cell => (cell === '' ? alphabet[Math.floor(Math.random() * alphabet.length)] : cell))
-        );
-        setTable(newTable);
-    }, [table]);
+  // Перевірка, чи можна розмістити слово у вибраній позиції
+  const canPlaceWord = useCallback((word, startX, startY, direction, newTable) => {
+    if (direction === "horizontal" && startX + word.length > tableSize) return false;
+    if (direction === "vertical" && startY + word.length > tableSize) return false;
 
-    const generateTableWithWords = useCallback(() => {
-        clearTable();
-        const wordList = [...words];
-        let success = false;
+    for (let i = 0; i < word.length; i++) {
+      const currentCell =
+        direction === "horizontal"
+          ? newTable[startY]?.[startX + i]
+          : newTable[startY + i]?.[startX];
 
-        while (!success) {
-            clearTable();
-            success = true;
-            for (let i = 0; i < wordList.length; i++) {
-                const colorClass = colorClasses[i % colorClasses.length];
-                if (!placeWord(wordList[i], colorClass)) {
-                    success = false;
-                    break;
-                }
-            }
-            if (success) {
-                setWordCount(`Всього в кросворді ${wordList.length} слів`);
-            }
+      if (currentCell !== "" && currentCell.letter !== word[i]) {
+        return false;
+      }
+    }
+    return true;
+  }, [tableSize]);
+
+  // Розміщення слова в таблиці
+  const placeWord = useCallback((word, colorClass, newTable) => {
+    let placed = false;
+    let attempts = 0;
+
+    while (!placed && attempts < maxAttempts) {
+      const startX = Math.floor(Math.random() * tableSize);
+      const startY = Math.floor(Math.random() * tableSize);
+      const direction = Math.random() > 0.5 ? "horizontal" : "vertical";
+
+      if (canPlaceWord(word, startX, startY, direction, newTable)) {
+        for (let i = 0; i < word.length; i++) {
+          if (direction === "horizontal") {
+            newTable[startY][startX + i] = { letter: word[i], color: colorClass };
+          } else {
+            newTable[startY + i][startX] = { letter: word[i], color: colorClass };
+          }
         }
-        fillEmptyCells();
-    }, [words, colorClasses, placeWord, fillEmptyCells]);
+        placed = true;
+      } else {
+        attempts++;
+      }
+    }
 
-    useEffect(() => {
-        generateTableWithWords();
-    }, [generateTableWithWords]);
+    return placed;
+  }, [tableSize, maxAttempts, canPlaceWord]);
 
-    const toggleHighlight = () => {
-        setHighlightEnabled(!highlightEnabled);
-    };
+  // Генерація таблиці зі словами
+  const generateTableWithWords = useCallback(() => {
+    let newTable = initializeTable();
+    let failedAttempts = 0;
 
-    return (
-        <div>
-            <h1>Зможеш знайти всі слова?</h1>
-            <div id="wordCount">{wordCount}</div>
-            <table>
-                <tbody>
-                    {table.map((row, rowIndex) => (
-                        <tr key={rowIndex}>
-                            {row.map((cell, cellIndex) => (
-                                <td key={cellIndex}
-                                    className={cell.color ? cell.color : ''}
-                                    style={{
-                                        fontWeight: cell.color && highlightEnabled ? 'bold' : 'normal',
-                                        backgroundColor: highlightEnabled && cell.color ? '' : 'transparent'
-                                    }}>
-                                    {cell.letter ? cell.letter : ''}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-            <button onClick={toggleHighlight}>
-                {highlightEnabled ? 'Вимкнути підсвічування' : 'Увімкнути підсвічування'}
-            </button>
-        </div>
-    );
+    for (let i = 0; i < words.length; i++) {
+      const wordPlaced = placeWord(words[i], colorClasses[i], newTable);
+      if (!wordPlaced) {
+        failedAttempts++;
+        if (failedAttempts >= maxAttempts) break; // Якщо не вдалося розмістити всі слова
+      }
+    }
+
+    newTable = fillEmptyCells(newTable);
+    setTable(newTable);
+  }, [initializeTable, placeWord, fillEmptyCells, words, colorClasses]);
+
+  useEffect(() => {
+    generateTableWithWords();
+  }, [generateTableWithWords]);
+
+  // Функція для зміни стану підсвічування
+  const toggleHighlight = () => {
+    setHighlightActive((prevHighlightActive) => !prevHighlightActive);
+  };
+
+  return (
+    <div>
+      <h1>Знайди слова</h1>
+      <table>
+        <tbody>
+          {table.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex} className={highlightActive ? cell.color : "no-highlight"}>
+                  {cell.letter}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button onClick={toggleHighlight}>
+        {highlightActive ? "Вимкнути підсвічування" : "Увімкнути підсвічування"}
+      </button>
+    </div>
+  );
 };
 
-export default App;
+export default Crossword;
